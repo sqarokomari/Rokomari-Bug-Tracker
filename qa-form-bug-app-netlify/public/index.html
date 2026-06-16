@@ -1,0 +1,235 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Local QA Issue Form</title>
+  <link rel="stylesheet" href="/styles.css" />
+</head>
+<body>
+  <header class="app-header">
+    <div>
+      <h1>Local QA Issue Form</h1>
+      <p>Build reusable issue forms, upload evidence, export/import Excel reports.</p>
+    </div>
+    <div class="server-pill" id="serverStatus">Checking server...</div>
+  </header>
+
+  <nav class="tabs">
+    <button class="tab active" data-tab="builder">Form Builder</button>
+    <button class="tab" data-tab="report">Issue Report</button>
+    <button class="tab" data-tab="import">Import / Retest</button>
+  </nav>
+
+  <main>
+    <section id="builder" class="tab-panel active">
+      <div class="grid two">
+        <section class="card">
+          <h2>1. Form Preset</h2>
+          <div class="form-row">
+            <label>Load saved preset</label>
+            <select id="templateSelect">
+              <option value="">-- No preset selected --</option>
+            </select>
+          </div>
+          <div class="form-row">
+            <label>Preset name</label>
+            <input id="templateName" type="text" placeholder="Example: Checkout Bug Form" />
+          </div>
+          <div class="split">
+            <div class="form-row">
+              <label>Epic name</label>
+              <input id="epicName" type="text" placeholder="Example: Checkout" />
+            </div>
+            <div class="form-row">
+              <label>Epic ID / number</label>
+              <input id="epicId" type="text" placeholder="Example: EPIC-01" />
+            </div>
+          </div>
+          <div class="split">
+            <div class="form-row">
+              <label>Feature name</label>
+              <input id="featureName" type="text" placeholder="Example: Payment Flow" />
+            </div>
+            <div class="form-row">
+              <label>Feature ID / number</label>
+              <input id="featureId" type="text" placeholder="Example: FEAT-01" />
+            </div>
+          </div>
+          <div class="actions">
+            <button id="saveTemplateBtn" class="primary">Save Preset</button>
+            <button id="deleteTemplateBtn" class="danger ghost">Delete Preset</button>
+          </div>
+
+          <div class="embedded-preview">
+            <h3>Preset Preview</h3>
+            <p>This preview shows the preset draft. Submit Issue updates after Save Preset.</p>
+            <div id="presetPreview" class="preset-preview">
+              <p class="field-meta">Start typing preset details or add fields to see the draft preview here.</p>
+            </div>
+          </div>
+        </section>
+
+        <section class="card">
+          <h2>2. Add Custom Fields</h2>
+          <div class="split">
+            <div class="form-row">
+              <label>Field name</label>
+              <input id="newFieldName" type="text" placeholder="Example: Steps to reproduce" />
+            </div>
+            <div class="form-row">
+              <label>Field type</label>
+              <select id="newFieldType">
+                <option value="text">Text box</option>
+                <option value="textarea">Long text</option>
+                <option value="dropdown">Dropdown</option>
+                <option value="checkbox">Check box</option>
+                <option value="datetime">Date & Time</option>
+                <option value="file">Document / Image Upload</option>
+              </select>
+            </div>
+          </div>
+          <div class="form-row" id="optionsRow">
+            <label>Options for dropdown / checkbox group</label>
+            <input id="newFieldOptions" type="text" placeholder="Comma separated: Critical, High, Medium, Low" />
+          </div>
+          <div class="actions">
+            <button id="addFieldBtn">Add Field</button>
+            <button id="cancelEditFieldBtn" class="ghost hidden">Cancel Edit</button>
+            <button id="clearFieldsBtn" class="ghost">Clear Fields</button>
+          </div>
+          <div id="fieldList" class="field-list empty">No custom fields yet.</div>
+        </section>
+      </div>
+
+      <section class="card wide">
+        <h2>3. Submit Issue</h2>
+        <form id="issueForm">
+          <div class="split three">
+            <div class="form-row">
+              <label>Issue title</label>
+              <input name="title" id="issueTitle" type="text" required placeholder="Example: Pay button remains disabled" />
+            </div>
+            <div class="form-row">
+              <label>Status</label>
+              <select name="status" id="issueStatus">
+                <option>Open</option>
+                <option>In Progress</option>
+                <option>Fixed</option>
+                <option>Ready for Retest</option>
+                <option>Closed</option>
+                <option>Reopened</option>
+                <option>Rejected</option>
+                <option>Duplicate</option>
+              </select>
+            </div>
+            <div class="form-row">
+              <label>Severity</label>
+              <select name="severity" id="issueSeverity">
+                <option value="">-- Select --</option>
+                <option>Critical</option>
+                <option>High</option>
+                <option>Medium</option>
+                <option>Low</option>
+              </select>
+            </div>
+          </div>
+          <div class="split three">
+            <div class="form-row">
+              <label>Priority</label>
+              <select name="priority" id="issuePriority">
+                <option value="">-- Select --</option>
+                <option>P1</option>
+                <option>P2</option>
+                <option>P3</option>
+                <option>P4</option>
+              </select>
+            </div>
+            <div class="form-row readonly-box">
+              <label>Active Epic</label>
+              <span id="activeEpic">-</span>
+            </div>
+            <div class="form-row readonly-box">
+              <label>Active Feature</label>
+              <span id="activeFeature">-</span>
+            </div>
+          </div>
+
+          <div id="submitPresetNotice" class="notice hidden"></div>
+          <div id="dynamicFormFields" class="dynamic-fields"></div>
+
+          <div class="actions">
+            <button type="submit" class="primary">Save Issue</button>
+            <button type="reset" class="ghost">Reset Issue Form</button>
+          </div>
+        </form>
+      </section>
+    </section>
+
+    <section id="report" class="tab-panel">
+      <section class="card wide">
+        <div class="report-head">
+          <div>
+            <h2>Issue Report</h2>
+            <p>Excel export includes attachment links.</p>
+          </div>
+          <div class="actions">
+            <button id="refreshIssuesBtn">Refresh</button>
+            <a id="viewSpreadsheetBtn" href="#" target="_blank" rel="noreferrer" class="button">View in Spreadsheet</a>
+            <a id="downloadExcelBtn" href="#" class="button primary disabled" aria-disabled="true">Download Excel</a>
+          </div>
+        </div>
+        <div class="filters report-filters">
+          <select id="reportEpicFilter" required>
+            <option value="">Select Epic first</option>
+          </select>
+          <select id="reportFeatureFilter" required disabled>
+            <option value="">Select Feature / Task</option>
+          </select>
+          <input id="searchBox" type="search" placeholder="Search selected issues..." />
+          <select id="statusFilter">
+            <option value="">All statuses</option>
+            <option>Open</option>
+            <option>In Progress</option>
+            <option>Fixed</option>
+            <option>Ready for Retest</option>
+            <option>Closed</option>
+            <option>Reopened</option>
+            <option>Imported</option>
+          </select>
+        </div>
+        <div id="reportScopeNotice" class="notice">Select an Epic and Feature/Task to view issues and enable Excel download.</div>
+        <div class="table-wrap">
+          <table id="issuesTable">
+            <thead></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </section>
+    </section>
+
+    <section id="import" class="tab-panel">
+      <section class="card wide">
+        <h2>Import Excel Report for Retesting</h2>
+        <p>Import a previously exported <strong>qa-issues-report.xlsx</strong>. Duplicate Issue No values will be skipped.</p>
+        <form id="importForm" class="import-box">
+          <input type="file" id="importFile" name="report" accept=".xlsx" required />
+          <button class="primary" type="submit">Import Excel</button>
+        </form>
+        <div id="importResult" class="notice hidden"></div>
+      </section>
+    </section>
+  </main>
+
+  <div class="modal-backdrop hidden" id="issueModal">
+    <div class="modal">
+      <button class="modal-close" id="closeModalBtn">×</button>
+      <div id="modalContent"></div>
+    </div>
+  </div>
+
+  <div id="toast" class="toast hidden"></div>
+
+  <script src="/app.js"></script>
+</body>
+</html>

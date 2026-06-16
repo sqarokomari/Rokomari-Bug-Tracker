@@ -1,0 +1,24 @@
+{
+  "name": "qa-form-bug-app",
+  "version": "1.0.0",
+  "description": "Local dynamic QA issue form app with Excel export/import and optional Google Drive attachment upload.",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "netlify dev",
+    "build": "node -e \"console.log(\\\"static build complete\\\")\""
+  },
+  "dependencies": {
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.7",
+    "exceljs": "^4.4.0",
+    "express": "^4.21.2",
+    "fs-extra": "^11.2.0",
+    "googleapis": "^144.0.0",
+    "multer": "^1.4.5-lts.1",
+    "uuid": "^11.0.5"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

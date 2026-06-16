@@ -1,0 +1,8 @@
+node_modules
+.env
+.DS_Store
+.netlify
+uploads
+tmp
+imports
+service-account.json

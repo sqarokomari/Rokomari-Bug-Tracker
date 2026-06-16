@@ -1,0 +1,34 @@
+Replace these files in your main project folder:
+D:\dev\qa-form-bug-app\qa-form-bug-app
+
+Replace existing files:
+- server.js
+- public\app.js
+- public\index.html
+- public\styles.css
+- lib\apps-script.js
+- google-apps-script\Code.gs
+
+After replacing:
+1. Copy google-apps-script\Code.gs into your Google Apps Script editor.
+2. Deploy a new version of the Web App.
+3. Keep the same Web App URL in .env unless Google gives you a new one.
+4. Restart local app:
+   Ctrl + C
+   npm.cmd start
+5. Hard refresh browser:
+   Ctrl + F5
+
+New behavior:
+- Preset preview is now inside the Form Preset card.
+- Custom fields can be edited using the Edit button.
+- Add Field button becomes Update Field while editing.
+- Upload fields support:
+  - local drag/drop files
+  - click to select local files
+  - paste copied image into the focused drop zone
+  - drag web image/link into the drop zone when the browser exposes a URL
+- Remote web links are sent to Apps Script and saved into your Drive issue folder.
+
+Note:
+Some websites block image downloading. In those cases, paste the screenshot/image file or download it locally and drag it into the box.
