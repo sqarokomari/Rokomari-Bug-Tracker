@@ -3,16 +3,19 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Local QA Issue Form</title>
+  <title>Rokomari SQA Issue Form</title>
   <link rel="stylesheet" href="/styles.css" />
 </head>
 <body>
   <header class="app-header">
     <div>
-      <h1>Local QA Issue Form</h1>
+      <h1>Rokomari SQA Issue Form</h1>
       <p>Build reusable issue forms, upload evidence, export/import Excel reports.</p>
     </div>
-    <div class="server-pill" id="serverStatus">Checking server...</div>
+    <div class="header-actions">
+      <button id="themeToggleBtn" class="theme-toggle" type="button" aria-label="Switch to dark mode">🌙 Dark</button>
+      <div class="server-pill" id="serverStatus">Checking server...</div>
+    </div>
   </header>
 
   <nav class="tabs">

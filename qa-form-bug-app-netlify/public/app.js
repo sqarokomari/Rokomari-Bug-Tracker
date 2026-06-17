@@ -57,6 +57,36 @@ function formatDateTimeValue(value) {
   return date.toLocaleString();
 }
 
+
+function applyTheme(theme) {
+  const normalizedTheme = theme === 'dark' ? 'dark' : 'light';
+  const isDark = normalizedTheme === 'dark';
+  document.body.classList.toggle('dark-mode', isDark);
+  document.documentElement.dataset.theme = normalizedTheme;
+
+  const btn = $('#themeToggleBtn');
+  if (btn) {
+    btn.textContent = isDark ? '☀️ Light' : '🌙 Dark';
+    btn.setAttribute('aria-label', isDark ? 'Switch to light mode' : 'Switch to dark mode');
+  }
+
+  localStorage.setItem('qaIssueFormTheme', normalizedTheme);
+}
+
+function initTheme() {
+  const savedTheme = localStorage.getItem('qaIssueFormTheme');
+  const systemPrefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+  applyTheme(savedTheme || (systemPrefersDark ? 'dark' : 'light'));
+
+  const btn = $('#themeToggleBtn');
+  if (btn) {
+    btn.addEventListener('click', () => {
+      const nextTheme = document.body.classList.contains('dark-mode') ? 'light' : 'dark';
+      applyTheme(nextTheme);
+    });
+  }
+}
+
 async function api(path, options = {}) {
   const response = await fetch(path, options);
   if (!response.ok) {
@@ -1035,6 +1065,7 @@ function bindEvents() {
 }
 
 async function init() {
+  initTheme();
   bindEvents();
   renderFieldList();
   renderDynamicForm();
