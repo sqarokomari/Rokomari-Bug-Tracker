@@ -765,3 +765,49 @@ body.dark-mode .tag-info { color: #93c5fd; }
 }
 
 .chart-host { min-height: 150px; }
+
+
+/* Issue Report create-flow updates */
+.table-wrap {
+  max-height: 420px;
+  overflow: auto;
+}
+
+.table-wrap thead th {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+}
+
+#createIssueBtn.disabled,
+button.disabled,
+.button.disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.large-modal {
+  width: min(1160px, calc(100vw - 40px));
+  max-height: calc(100vh - 56px);
+  overflow: auto;
+}
+
+.create-issue-modal {
+  padding: 20px;
+}
+
+.create-issue-modal h2 {
+  margin-top: 0;
+}
+
+.create-issue-modal .dynamic-fields {
+  max-height: 42vh;
+  overflow: auto;
+  padding-right: 6px;
+}
+
+@media (max-width: 900px) {
+  .large-modal {
+    width: calc(100vw - 24px);
+  }
+}

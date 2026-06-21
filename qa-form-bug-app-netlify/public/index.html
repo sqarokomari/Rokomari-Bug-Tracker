@@ -104,9 +104,85 @@
           <div id="fieldList" class="field-list empty">No custom fields yet.</div>
         </section>
       </div>
+    </section>
 
+    <section id="report" class="tab-panel">
       <section class="card wide">
-        <h2>3. Submit Issue</h2>
+        <div class="report-head">
+          <div>
+            <h2>Issue Report</h2>
+            <p>Excel export includes attachment links.</p>
+          </div>
+          <div class="actions">
+            <button id="refreshIssuesBtn">Refresh</button>
+            <button id="createIssueBtn" class="primary disabled" type="button" aria-disabled="true">Create Issue</button>
+            <a id="viewSpreadsheetBtn" href="#" target="_blank" rel="noreferrer" class="button">View in Spreadsheet</a>
+            <a id="downloadExcelBtn" href="#" class="button primary disabled" aria-disabled="true">Download Excel</a>
+          </div>
+        </div>
+        <div class="filters report-filters">
+          <select id="reportEpicFilter" required>
+            <option value="">Select Epic first</option>
+          </select>
+          <select id="reportFeatureFilter" required disabled>
+            <option value="">Select Feature / Task</option>
+          </select>
+          <input id="searchBox" type="search" placeholder="Search selected issues..." />
+          <select id="statusFilter">
+            <option value="">All statuses</option>
+            <option>Open</option>
+            <option>In Progress</option>
+            <option>Fixed</option>
+            <option>Ready for Retest</option>
+            <option>Closed</option>
+            <option>Reopened</option>
+            <option>Imported</option>
+          </select>
+        </div>
+        <div id="reportScopeNotice" class="notice">Select an Epic and Feature/Task to view issues and enable Excel download.</div>
+        <section id="reportStats" class="stats-panel">
+          <div class="stats-grid">
+            <div class="stats-card">
+              <h3>Severity overview</h3>
+              <div id="severityChart" class="chart-host">Select an Epic and Feature/Task to see severity statistics.</div>
+            </div>
+            <div class="stats-card">
+              <h3>Priority overview</h3>
+              <div id="priorityChart" class="chart-host">Select an Epic and Feature/Task to see priority statistics.</div>
+            </div>
+            <div class="stats-card">
+              <h3>Status overview</h3>
+              <div id="statusPieChart" class="chart-host">Select an Epic and Feature/Task to see status statistics.</div>
+            </div>
+          </div>
+        </section>
+        <div class="table-wrap">
+          <table id="issuesTable">
+            <thead></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+        <div id="issueCountSummary" class="summary-row">Total issues: 0</div>
+      </section>
+    </section>
+
+    <section id="import" class="tab-panel">
+      <section class="card wide">
+        <h2>Import Excel Report for Retesting</h2>
+        <p>Import a previously exported <strong>qa-issues-report.xlsx</strong>. Duplicate Issue No values will be skipped.</p>
+        <form id="importForm" class="import-box">
+          <input type="file" id="importFile" name="report" accept=".xlsx" required />
+          <button class="primary" type="submit">Import Excel</button>
+        </form>
+        <div id="importResult" class="notice hidden"></div>
+      </section>
+    </section>
+  </main>
+
+  <div class="modal-backdrop hidden" id="createIssueModal">
+<div class="modal large-modal create-issue-modal">
+        <button class="modal-close" id="closeCreateIssueModalBtn" type="button">×</button>
+      <h2>Create Issue</h2>
         <form id="issueForm">
           <div class="split three">
             <div class="form-row">
@@ -180,80 +256,8 @@
             <button type="reset" class="ghost">Reset Issue Form</button>
           </div>
         </form>
-      </section>
-    </section>
-
-    <section id="report" class="tab-panel">
-      <section class="card wide">
-        <div class="report-head">
-          <div>
-            <h2>Issue Report</h2>
-            <p>Excel export includes attachment links.</p>
-          </div>
-          <div class="actions">
-            <button id="refreshIssuesBtn">Refresh</button>
-            <a id="viewSpreadsheetBtn" href="#" target="_blank" rel="noreferrer" class="button">View in Spreadsheet</a>
-            <a id="downloadExcelBtn" href="#" class="button primary disabled" aria-disabled="true">Download Excel</a>
-          </div>
-        </div>
-        <div class="filters report-filters">
-          <select id="reportEpicFilter" required>
-            <option value="">Select Epic first</option>
-          </select>
-          <select id="reportFeatureFilter" required disabled>
-            <option value="">Select Feature / Task</option>
-          </select>
-          <input id="searchBox" type="search" placeholder="Search selected issues..." />
-          <select id="statusFilter">
-            <option value="">All statuses</option>
-            <option>Open</option>
-            <option>In Progress</option>
-            <option>Fixed</option>
-            <option>Ready for Retest</option>
-            <option>Closed</option>
-            <option>Reopened</option>
-            <option>Imported</option>
-          </select>
-        </div>
-        <div id="reportScopeNotice" class="notice">Select an Epic and Feature/Task to view issues and enable Excel download.</div>
-        <section id="reportStats" class="stats-panel">
-          <div class="stats-grid">
-            <div class="stats-card">
-              <h3>Severity overview</h3>
-              <div id="severityChart" class="chart-host">Select an Epic and Feature/Task to see severity statistics.</div>
-            </div>
-            <div class="stats-card">
-              <h3>Priority overview</h3>
-              <div id="priorityChart" class="chart-host">Select an Epic and Feature/Task to see priority statistics.</div>
-            </div>
-            <div class="stats-card">
-              <h3>Status overview</h3>
-              <div id="statusPieChart" class="chart-host">Select an Epic and Feature/Task to see status statistics.</div>
-            </div>
-          </div>
-        </section>
-        <div class="table-wrap">
-          <table id="issuesTable">
-            <thead></thead>
-            <tbody></tbody>
-          </table>
-        </div>
-        <div id="issueCountSummary" class="summary-row">Total issues: 0</div>
-      </section>
-    </section>
-
-    <section id="import" class="tab-panel">
-      <section class="card wide">
-        <h2>Import Excel Report for Retesting</h2>
-        <p>Import a previously exported <strong>qa-issues-report.xlsx</strong>. Duplicate Issue No values will be skipped.</p>
-        <form id="importForm" class="import-box">
-          <input type="file" id="importFile" name="report" accept=".xlsx" required />
-          <button class="primary" type="submit">Import Excel</button>
-        </form>
-        <div id="importResult" class="notice hidden"></div>
-      </section>
-    </section>
-  </main>
+      </div>
+  </div>
 
   <div class="modal-backdrop hidden" id="issueModal">
     <div class="modal">

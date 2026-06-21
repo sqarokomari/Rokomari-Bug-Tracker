@@ -885,6 +885,8 @@ async function submitIssue(event) {
     renderDynamicForm();
     setDefaultIssueDate();
     await loadIssues();
+    updateReportActions();
+    closeCreateIssueModal();
     toast('Issue saved.');
     switchTab('report');
   } catch (error) {
@@ -909,6 +911,13 @@ function getSelectedReportScope() {
   };
 }
 
+function getReportSourceItems() {
+  return [
+    ...state.templates.map((template) => ({ ...template, sourceType: 'template' })),
+    ...state.issues.map((issue) => ({ ...issue, sourceType: 'issue' }))
+  ];
+}
+
 function getUniqueOptions(items, idKey, nameKey) {
   const map = new Map();
   for (const item of items) {
@@ -919,6 +928,59 @@ function getUniqueOptions(items, idKey, nameKey) {
   return Array.from(map.values()).sort((a, b) => a.name.localeCompare(b.name));
 }
 
+function getTemplateForReportScope() {
+  const { epicId, featureId } = getSelectedReportScope();
+  if (!epicId || !featureId) return null;
+  return state.templates.find((template) => template.epicId === epicId && template.featureId === featureId) || null;
+}
+
+function applyReportScopeTemplate() {
+  const template = getTemplateForReportScope();
+  if (!template) return null;
+
+  state.selectedTemplateId = template.id;
+  state.activeTemplate = cloneTemplate(template);
+
+  const templateSelect = $('#templateSelect');
+  if (templateSelect) templateSelect.value = template.id;
+
+  renderDynamicForm();
+  updateActiveContext();
+  setDefaultIssueDate();
+  updateSubmitPresetNotice();
+
+  return template;
+}
+
+function openCreateIssueModal() {
+  if (!isReportScopeSelected()) {
+    toast('Select an Epic and Feature/Task first.');
+    return;
+  }
+
+  const template = applyReportScopeTemplate();
+  if (!template) {
+    toast('No saved preset found for this Epic and Feature/Task. Create and save a preset first.');
+    return;
+  }
+
+  const form = $('#issueForm');
+  if (form) {
+    form.reset();
+    state.remoteAttachmentUrls = {};
+    renderDynamicForm();
+    updateActiveContext();
+    setDefaultIssueDate();
+  }
+
+  $('#createIssueModal')?.classList.remove('hidden');
+  $('#issueTitle')?.focus();
+}
+
+function closeCreateIssueModal() {
+  $('#createIssueModal')?.classList.add('hidden');
+}
+
 function renderReportFilters() {
   const epicSelect = $('#reportEpicFilter');
   const featureSelect = $('#reportFeatureFilter');
@@ -926,7 +988,7 @@ function renderReportFilters() {
 
   const previousEpic = epicSelect.value;
   const previousFeature = featureSelect.value;
-  const epics = getUniqueOptions(state.issues, 'epicId', 'epicName');
+  const epics = getUniqueOptions(getReportSourceItems(), 'epicId', 'epicName');
 
   epicSelect.innerHTML = '<option value="">Select Epic first</option>' + epics.map((epic) =>
     `<option value="${escapeHtml(epic.id)}">${escapeHtml(epic.name)} (${escapeHtml(epic.id)})</option>`
@@ -950,7 +1012,7 @@ function populateFeatureFilter(preferredFeatureId = '') {
   }
 
   const features = getUniqueOptions(
-    state.issues.filter((issue) => issue.epicId === epicId),
+    getReportSourceItems().filter((item) => item.epicId === epicId),
     'featureId',
     'featureName'
   );
@@ -973,7 +1035,9 @@ function isReportScopeSelected() {
 function updateReportActions() {
   const { epicId, featureId } = getSelectedReportScope();
   const selected = Boolean(epicId && featureId);
+  const hasTemplate = Boolean(getTemplateForReportScope());
   const downloadBtn = $('#downloadExcelBtn');
+  const createBtn = $('#createIssueBtn');
   const notice = $('#reportScopeNotice');
 
   if (downloadBtn) {
@@ -988,8 +1052,32 @@ function updateReportActions() {
     }
   }
 
+  if (createBtn) {
+    if (selected && hasTemplate) {
+      createBtn.classList.remove('disabled');
+      createBtn.disabled = false;
+      createBtn.setAttribute('aria-disabled', 'false');
+      createBtn.title = 'Create a new issue under the selected Epic and Feature/Task';
+    } else {
+      createBtn.classList.add('disabled');
+      createBtn.disabled = true;
+      createBtn.setAttribute('aria-disabled', 'true');
+      createBtn.title = selected
+        ? 'No saved preset found for this Epic and Feature/Task'
+        : 'Select an Epic and Feature/Task first';
+    }
+  }
+
   if (notice) {
-    notice.classList.toggle('hidden', selected);
+    if (!selected) {
+      notice.textContent = 'Select an Epic and Feature/Task to view issues, create issues, and enable Excel download.';
+      notice.classList.remove('hidden');
+    } else if (!hasTemplate) {
+      notice.textContent = 'No saved preset exists for this Epic and Feature/Task. Create and save a preset before reporting new issues.';
+      notice.classList.remove('hidden');
+    } else {
+      notice.classList.add('hidden');
+    }
   }
 }
 
@@ -1204,12 +1292,18 @@ function bindEvents() {
     }, 0);
   });
   $('#refreshIssuesBtn').addEventListener('click', () => loadIssues().then(() => toast('Report refreshed.')));
+  $('#createIssueBtn')?.addEventListener('click', openCreateIssueModal);
+  $('#closeCreateIssueModalBtn')?.addEventListener('click', closeCreateIssueModal);
+  $('#createIssueModal')?.addEventListener('click', (event) => {
+    if (event.target.id === 'createIssueModal') closeCreateIssueModal();
+  });
   $('#reportEpicFilter').addEventListener('change', () => {
     populateFeatureFilter();
     updateReportActions();
     renderIssuesTable();
   });
   $('#reportFeatureFilter').addEventListener('change', () => {
+    applyReportScopeTemplate();
     updateReportActions();
     renderIssuesTable();
   });
