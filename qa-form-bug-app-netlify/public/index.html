@@ -148,6 +148,20 @@
                 <option>P4</option>
               </select>
             </div>
+            <div class="form-row">
+              <label>Issue date</label>
+              <input name="issueDate" id="issueDate" type="datetime-local" />
+            </div>
+            <div class="form-row">
+              <label>Reported To</label>
+              <input name="reportedTo" id="reportedTo" type="text" placeholder="Example: Backend Team / Developer name" />
+            </div>
+          </div>
+          <div class="split three">
+            <div class="form-row">
+              <label>Reported By</label>
+              <input name="reportedBy" id="reportedBy" type="text" placeholder="Example: QA name" />
+            </div>
             <div class="form-row readonly-box">
               <label>Active Epic</label>
               <span id="activeEpic">-</span>
@@ -202,12 +216,29 @@
           </select>
         </div>
         <div id="reportScopeNotice" class="notice">Select an Epic and Feature/Task to view issues and enable Excel download.</div>
+        <section id="reportStats" class="stats-panel">
+          <div class="stats-grid">
+            <div class="stats-card">
+              <h3>Severity overview</h3>
+              <div id="severityChart" class="chart-host">Select an Epic and Feature/Task to see severity statistics.</div>
+            </div>
+            <div class="stats-card">
+              <h3>Priority overview</h3>
+              <div id="priorityChart" class="chart-host">Select an Epic and Feature/Task to see priority statistics.</div>
+            </div>
+            <div class="stats-card">
+              <h3>Status overview</h3>
+              <div id="statusPieChart" class="chart-host">Select an Epic and Feature/Task to see status statistics.</div>
+            </div>
+          </div>
+        </section>
         <div class="table-wrap">
           <table id="issuesTable">
             <thead></thead>
             <tbody></tbody>
           </table>
         </div>
+        <div id="issueCountSummary" class="summary-row">Total issues: 0</div>
       </section>
     </section>
 

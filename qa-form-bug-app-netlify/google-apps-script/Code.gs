@@ -27,6 +27,9 @@ const BASE_HEADERS = [
   'Epic ID',
   'Feature Name',
   'Feature ID',
+  'Issue Date',
+  'Reported To',
+  'Reported By',
   'Status',
   'Severity',
   'Priority',
@@ -369,6 +372,9 @@ function issueFromRow(headers, row) {
     epicId: String(obj['Epic ID'] || ''),
     featureName: String(obj['Feature Name'] || ''),
     featureId: String(obj['Feature ID'] || ''),
+    issueDate: String(obj['Issue Date'] || obj['Created At'] || ''),
+    reportedTo: String(obj['Reported To'] || ''),
+    reportedBy: String(obj['Reported By'] || ''),
     status: String(obj['Status'] || ''),
     severity: String(obj['Severity'] || ''),
     priority: String(obj['Priority'] || ''),
@@ -411,6 +417,9 @@ function upsertIssue(issue) {
       case 'Epic ID': return issue.epicId || '';
       case 'Feature Name': return issue.featureName || '';
       case 'Feature ID': return issue.featureId || '';
+      case 'Issue Date': return issue.issueDate || '';
+      case 'Reported To': return issue.reportedTo || '';
+      case 'Reported By': return issue.reportedBy || '';
       case 'Status': return issue.status || '';
       case 'Severity': return issue.severity || '';
       case 'Priority': return issue.priority || '';
@@ -495,6 +504,9 @@ function createIssue(payload) {
     featureName: String(payload.featureName || '').trim(),
     featureId,
     title: String(payload.title || '').trim() || issueNo,
+    issueDate: String(payload.issueDate || now).trim(),
+    reportedTo: String(payload.reportedTo || '').trim(),
+    reportedBy: String(payload.reportedBy || '').trim(),
     status: String(payload.status || 'Open').trim(),
     severity: String(payload.severity || '').trim(),
     priority: String(payload.priority || '').trim(),

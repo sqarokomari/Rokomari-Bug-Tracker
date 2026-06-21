@@ -57,6 +57,144 @@ function formatDateTimeValue(value) {
   return date.toLocaleString();
 }
 
+function formatDateTimeInputValue(value) {
+  if (!value) return '';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '';
+  const pad = (num) => String(num).padStart(2, '0');
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
+}
+
+function setDefaultIssueDate() {
+  const input = $('#issueDate');
+  if (!input || input.value) return;
+  input.value = formatDateTimeInputValue(new Date().toISOString());
+}
+
+function getSeverityTone(value) {
+  const v = String(value || '').toLowerCase();
+  if (v === 'critical') return 'danger';
+  if (v === 'high') return 'warning';
+  if (v === 'medium') return 'caution';
+  if (v === 'low') return 'success';
+  return 'neutral';
+}
+
+function getPriorityTone(value) {
+  const v = String(value || '').toUpperCase();
+  if (v === 'P1') return 'danger';
+  if (v === 'P2') return 'warning';
+  if (v === 'P3') return 'caution';
+  if (v === 'P4') return 'success';
+  return 'neutral';
+}
+
+function getStatusTone(value) {
+  const v = String(value || '').toLowerCase();
+  if (['open', 'reopened'].includes(v)) return 'danger';
+  if (['in progress', 'ready for retest'].includes(v)) return 'warning';
+  if (['fixed', 'closed'].includes(v)) return 'success';
+  if (['rejected', 'duplicate'].includes(v)) return 'neutral';
+  return 'info';
+}
+
+function renderBadge(text, tone) {
+  return `<span class="tag tag-${tone}">${escapeHtml(text || '-')}</span>`;
+}
+
+function countBy(issues, key, orderedValues = []) {
+  const map = new Map();
+  for (const value of orderedValues) map.set(value, 0);
+  for (const issue of issues) {
+    const raw = issue[key] || 'Unspecified';
+    map.set(raw, (map.get(raw) || 0) + 1);
+  }
+  return Array.from(map.entries()).filter(([, count]) => count > 0 || orderedValues.length > 0);
+}
+
+function renderHorizontalChart(containerId, title, items, type) {
+  const el = $(containerId);
+  if (!el) return;
+  const total = items.reduce((sum, [, count]) => sum + count, 0);
+  if (!total) {
+    el.innerHTML = `<div class="chart-placeholder">No ${title.toLowerCase()} data for the selected issues.</div>`;
+    return;
+  }
+
+  el.innerHTML = items.map(([label, count]) => {
+    const percent = Math.round((count / total) * 100);
+    const tone = type === 'severity' ? getSeverityTone(label) : getPriorityTone(label);
+    return `
+      <div class="chart-row">
+        <div class="chart-row-head">
+          <span class="chart-label">${escapeHtml(label)}</span>
+          <span class="chart-value">${count} (${percent}%)</span>
+        </div>
+        <div class="chart-bar-track"><div class="chart-bar tone-${tone}" style="width:${percent}%"></div></div>
+      </div>`;
+  }).join('');
+}
+
+function renderStatusPie(issues) {
+  const el = $('#statusPieChart');
+  if (!el) return;
+  const statusOrder = ['Open', 'In Progress', 'Ready for Retest', 'Fixed', 'Closed', 'Reopened', 'Rejected', 'Duplicate', 'Imported'];
+  const items = countBy(issues, 'status', statusOrder);
+  const total = items.reduce((sum, [, count]) => sum + count, 0);
+  if (!total) {
+    el.innerHTML = '<div class="chart-placeholder">No status data for the selected issues.</div>';
+    return;
+  }
+
+  const colorMap = {
+    danger: '#ef4444',
+    warning: '#f59e0b',
+    caution: '#eab308',
+    success: '#22c55e',
+    neutral: '#64748b',
+    info: '#3b82f6'
+  };
+
+  let start = 0;
+  const segments = [];
+  const legend = [];
+  for (const [label, count] of items) {
+    const percent = (count / total) * 100;
+    const end = start + percent;
+    const tone = getStatusTone(label);
+    const color = colorMap[tone] || colorMap.info;
+    segments.push(`${color} ${start}% ${end}%`);
+    legend.push(`<div class="pie-legend-item"><span class="dot tone-${tone}"></span><span>${escapeHtml(label)}</span><strong>${count}</strong></div>`);
+    start = end;
+  }
+
+  el.innerHTML = `
+    <div class="pie-chart-wrap">
+      <div class="pie-chart" style="background: conic-gradient(${segments.join(', ')})"></div>
+      <div class="pie-chart-center">${total}<small>issues</small></div>
+    </div>
+    <div class="pie-legend">${legend.join('')}</div>`;
+}
+
+function renderReportStats() {
+  const issues = getFilteredIssues();
+  if (!isReportScopeSelected()) {
+    ['#severityChart', '#priorityChart', '#statusPieChart'].forEach((selector) => {
+      const el = $(selector);
+      if (el) el.innerHTML = '<div class="chart-placeholder">Select an Epic and Feature/Task to see statistics.</div>';
+    });
+    const summary = $('#issueCountSummary');
+    if (summary) summary.textContent = 'Total issues: 0';
+    return;
+  }
+
+  renderHorizontalChart('#severityChart', 'Severity', countBy(issues, 'severity', ['Critical', 'High', 'Medium', 'Low']), 'severity');
+  renderHorizontalChart('#priorityChart', 'Priority', countBy(issues, 'priority', ['P1', 'P2', 'P3', 'P4']), 'priority');
+  renderStatusPie(issues);
+
+  const summary = $('#issueCountSummary');
+  if (summary) summary.textContent = `Total issues: ${issues.length}`;
+}
 
 function applyTheme(theme) {
   const normalizedTheme = theme === 'dark' ? 'dark' : 'light';
@@ -139,6 +277,7 @@ function setPresetValues(template, options = { activate: true }) {
   updateFieldOptionsVisibility();
   updateActiveContext();
   renderPresetPreview();
+  setDefaultIssueDate();
   updateSubmitPresetNotice();
 }
 
@@ -731,6 +870,9 @@ async function submitIssue(event) {
         status: $('#issueStatus').value,
         severity: $('#issueSeverity').value,
         priority: $('#issuePriority').value,
+        issueDate: $('#issueDate').value,
+        reportedTo: $('#reportedTo').value.trim(),
+        reportedBy: $('#reportedBy').value.trim(),
         fields,
         fieldMeta: getSubmitFields(),
         files,
@@ -741,6 +883,7 @@ async function submitIssue(event) {
     event.target.reset();
     state.remoteAttachmentUrls = {};
     renderDynamicForm();
+    setDefaultIssueDate();
     await loadIssues();
     toast('Issue saved.');
     switchTab('report');
@@ -870,6 +1013,9 @@ function getFilteredIssues() {
       issue.status,
       issue.severity,
       issue.priority,
+      issue.issueDate,
+      issue.reportedTo,
+      issue.reportedBy,
       JSON.stringify(issue.fields || {})
     ].join(' ').toLowerCase();
     return (!text || haystack.includes(text)) && (!status || issue.status === status);
@@ -886,6 +1032,9 @@ function renderIssuesTable() {
       <th>Title</th>
       <th>Epic</th>
       <th>Feature</th>
+      <th>Issue Date</th>
+      <th>Reported To</th>
+      <th>Reported By</th>
       <th>Status</th>
       <th>Severity</th>
       <th>Priority</th>
@@ -895,13 +1044,15 @@ function renderIssuesTable() {
     </tr>`;
 
   const issues = getFilteredIssues();
+  renderReportStats();
+
   if (!isReportScopeSelected()) {
-    body.innerHTML = '<tr><td colspan="10">Select an Epic and Feature/Task to view issues.</td></tr>';
+    body.innerHTML = '<tr><td colspan="13">Select an Epic and Feature/Task to view issues.</td></tr>';
     return;
   }
 
   if (issues.length === 0) {
-    body.innerHTML = '<tr><td colspan="10">No issues found for this Epic and Feature/Task.</td></tr>';
+    body.innerHTML = '<tr><td colspan="13">No issues found for this Epic and Feature/Task.</td></tr>';
     return;
   }
 
@@ -911,9 +1062,12 @@ function renderIssuesTable() {
       <td>${escapeHtml(issue.title)}</td>
       <td>${escapeHtml(issue.epicName)}<br><span class="field-meta">${escapeHtml(issue.epicId)}</span></td>
       <td>${escapeHtml(issue.featureName)}<br><span class="field-meta">${escapeHtml(issue.featureId)}</span></td>
-      <td><span class="tag">${escapeHtml(issue.status)}</span></td>
-      <td>${escapeHtml(issue.severity || '-')}</td>
-      <td>${escapeHtml(issue.priority || '-')}</td>
+      <td>${escapeHtml(formatDateTimeValue(issue.issueDate || issue.createdAt) || '-')}</td>
+      <td>${escapeHtml(issue.reportedTo || '-')}</td>
+      <td>${escapeHtml(issue.reportedBy || '-')}</td>
+      <td>${renderBadge(issue.status, getStatusTone(issue.status))}</td>
+      <td>${renderBadge(issue.severity || '-', getSeverityTone(issue.severity))}</td>
+      <td>${renderBadge(issue.priority || '-', getPriorityTone(issue.priority))}</td>
       <td>${(issue.attachments || []).length}</td>
       <td>${escapeHtml(new Date(issue.createdAt).toLocaleString())}</td>
       <td><button data-open-issue="${issue.id}">View</button></td>
@@ -937,10 +1091,13 @@ function openIssue(id) {
     <div class="modal-grid">
       <div class="detail-box"><strong>Epic</strong>${escapeHtml(issue.epicName)}<br>${escapeHtml(issue.epicId)}</div>
       <div class="detail-box"><strong>Feature</strong>${escapeHtml(issue.featureName)}<br>${escapeHtml(issue.featureId)}</div>
+      <div class="detail-box"><strong>Issue Date</strong>${escapeHtml(formatDateTimeValue(issue.issueDate || issue.createdAt) || '-')}</div>
+      <div class="detail-box"><strong>Reported To</strong>${escapeHtml(issue.reportedTo || '-')}</div>
+      <div class="detail-box"><strong>Reported By</strong>${escapeHtml(issue.reportedBy || '-')}</div>
       <div class="detail-box"><strong>Source</strong>${escapeHtml(issue.source || '-')}</div>
       <div class="detail-box"><strong>Status</strong><select id="modalStatus">${['Open','In Progress','Fixed','Ready for Retest','Closed','Reopened','Rejected','Duplicate','Imported'].map((s) => `<option ${issue.status === s ? 'selected' : ''}>${s}</option>`).join('')}</select></div>
-      <div class="detail-box"><strong>Severity</strong>${escapeHtml(issue.severity || '-')}</div>
-      <div class="detail-box"><strong>Priority</strong>${escapeHtml(issue.priority || '-')}</div>
+      <div class="detail-box"><strong>Severity</strong>${renderBadge(issue.severity || '-', getSeverityTone(issue.severity))}</div>
+      <div class="detail-box"><strong>Priority</strong>${renderBadge(issue.priority || '-', getPriorityTone(issue.priority))}</div>
     </div>
 
     <h3>Fields</h3>
@@ -1039,6 +1196,13 @@ function bindEvents() {
     updateSubmitPresetNotice();
   });
   $('#issueForm').addEventListener('submit', submitIssue);
+  $('#issueForm').addEventListener('reset', () => {
+    setTimeout(() => {
+      state.remoteAttachmentUrls = {};
+      renderDynamicForm();
+      setDefaultIssueDate();
+    }, 0);
+  });
   $('#refreshIssuesBtn').addEventListener('click', () => loadIssues().then(() => toast('Report refreshed.')));
   $('#reportEpicFilter').addEventListener('change', () => {
     populateFeatureFilter();
@@ -1072,6 +1236,7 @@ async function init() {
   updateFieldOptionsVisibility();
   updateActiveContext();
   renderPresetPreview();
+  setDefaultIssueDate();
 
   try {
     const health = await api('/api/health');

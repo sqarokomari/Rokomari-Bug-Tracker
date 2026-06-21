@@ -98,6 +98,7 @@ async function exportIssues(event) {
 
   const baseHeaders = [
     'Issue No', 'Title', 'Epic Name', 'Epic ID', 'Feature Name', 'Feature ID',
+    'Issue Date', 'Reported To', 'Reported By',
     'Status', 'Severity', 'Priority', 'Attachment Links', 'Created At', 'Updated At'
   ];
   const headers = [...baseHeaders, ...dynamicNames, 'Extra Fields JSON', 'Field Meta JSON', 'Attachments JSON'];
@@ -109,6 +110,7 @@ async function exportIssues(event) {
     const attachmentLinks = (issue.attachments || []).map((item) => item.url).filter(Boolean).join('\n');
     const row = [
       issue.issueNo, issue.title, issue.epicName, issue.epicId, issue.featureName, issue.featureId,
+      issue.issueDate || '', issue.reportedTo || '', issue.reportedBy || '',
       issue.status, issue.severity, issue.priority, attachmentLinks, issue.createdAt, issue.updatedAt
     ];
     for (const name of dynamicNames) row.push(issue.fields?.[name] ?? '');
@@ -185,6 +187,7 @@ async function importIssues(event) {
 
     const baseHeaderSet = new Set([
       'Issue No', 'Title', 'Epic Name', 'Epic ID', 'Feature Name', 'Feature ID',
+      'Issue Date', 'Reported To', 'Reported By',
       'Status', 'Severity', 'Priority', 'Attachment Links', 'Created At', 'Updated At',
       'Extra Fields JSON', 'Field Meta JSON', 'Attachments JSON'
     ]);
@@ -205,6 +208,9 @@ async function importIssues(event) {
       epicId: values['Epic ID'] || slugify(values['Epic Name'] || 'epic'),
       featureName: values['Feature Name'] || '',
       featureId: values['Feature ID'] || slugify(values['Feature Name'] || 'feature'),
+      issueDate: values['Issue Date'] || values['Created At'] || new Date().toISOString(),
+      reportedTo: values['Reported To'] || '',
+      reportedBy: values['Reported By'] || '',
       status: values['Status'] || 'Imported',
       severity: values['Severity'] || '',
       priority: values['Priority'] || '',
