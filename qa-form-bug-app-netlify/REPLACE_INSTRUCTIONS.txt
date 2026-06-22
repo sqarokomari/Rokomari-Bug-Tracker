@@ -6,15 +6,9 @@ Replace these files in your project root:
 4) netlify/functions/api.js
 5) google-apps-script/Code.gs
 
-Important:
-- After replacing google-apps-script/Code.gs, open your Google Apps Script project, paste the new Code.gs content, and deploy the Web App again:
-  Deploy -> Manage deployments -> Edit -> New version -> Deploy
-- Then commit and push to GitHub.
-- Netlify should auto-redeploy. If needed: Deploys -> Trigger deploy -> Deploy project without cache.
+After replacing Code.gs:
+- Open Google Sheet -> Extensions -> Apps Script
+- Paste the updated Code.gs
+- Deploy -> Manage deployments -> Edit -> New version -> Deploy
 
-What this update adds:
-- Preset field list/edit/delete/move controls are now inside the Form Preset box.
-- Create Issue remains in Issue Report modal flow.
-- Each issue has a Comments button with name, comment, and attachment upload.
-- Epic-level comments are shown below the issue table with name, comment, and attachment upload.
-- Comments are saved in a new Google Sheet tab named Comments.
+Then push to GitHub and let Netlify redeploy.

@@ -9,7 +9,9 @@ const state = {
   spreadsheetUrl: '',
   editingFieldIndex: null,
   remoteAttachmentUrls: {},
-  selectedCommentIssue: null
+  selectedCommentIssue: null,
+  resources: {},
+  editingResourceType: null
 };
 
 const $ = (selector) => document.querySelector(selector);
@@ -101,6 +103,49 @@ function getStatusTone(value) {
 
 function renderBadge(text, tone) {
   return `<span class="tag tag-${tone}">${escapeHtml(text || '-')}</span>`;
+}
+
+const RESOURCE_TYPES = [
+  {
+    type: 'requirementDoc',
+    label: 'Requirement Doc',
+    placeholder: 'Paste requirement document link'
+  },
+  {
+    type: 'testCaseSheet',
+    label: 'Test Case Sheet',
+    placeholder: 'Paste test case sheet link'
+  },
+  {
+    type: 'testPlanDoc',
+    label: 'Test Plan Doc',
+    placeholder: 'Paste test plan document link'
+  },
+  {
+    type: 'userManual',
+    label: 'User Manual',
+    placeholder: 'Paste user manual link'
+  }
+];
+
+function normalizeExternalUrl(value) {
+  const text = String(value || '').trim();
+  if (!text) return '';
+  try {
+    const url = new URL(text);
+    if (!['http:', 'https:'].includes(url.protocol)) return '';
+    return url.href;
+  } catch {
+    return '';
+  }
+}
+
+function getDomainLabel(value) {
+  try {
+    return new URL(value).hostname.replace(/^www\./, '');
+  } catch {
+    return 'External link';
+  }
 }
 
 function countBy(issues, key, orderedValues = []) {
@@ -1188,6 +1233,167 @@ function getSelectedEpicContext() {
   };
 }
 
+function getSelectedFeatureContext() {
+  const { epicId, featureId } = getSelectedReportScope();
+  if (!epicId || !featureId) return null;
+  const source = getReportSourceItems().find((item) => item.epicId === epicId && item.featureId === featureId) || {};
+  return {
+    epicId,
+    epicName: source.epicName || epicId,
+    featureId,
+    featureName: source.featureName || featureId
+  };
+}
+
+async function loadResourcesForScope() {
+  const context = getSelectedFeatureContext();
+  const scopeText = $('#resourceScopeText');
+
+  state.resources = {};
+  state.editingResourceType = null;
+
+  if (!context) {
+    if (scopeText) scopeText.textContent = 'Select an Epic and Feature/Task to view or update documentation links.';
+    renderResourceCards();
+    return;
+  }
+
+  if (scopeText) {
+    scopeText.textContent = `Epic: ${context.epicName} (${context.epicId}) / Feature: ${context.featureName} (${context.featureId})`;
+  }
+
+  try {
+    const query = new URLSearchParams({ epicId: context.epicId, featureId: context.featureId }).toString();
+    const resources = await api(`/api/resources?${query}`);
+    state.resources = Object.fromEntries((resources || []).map((resource) => [resource.type, resource]));
+  } catch (error) {
+    toast(`Could not load documentation links: ${error.message}`);
+    state.resources = {};
+  }
+
+  renderResourceCards();
+}
+
+function renderResourceCards() {
+  const wrapper = $('#resourceCards');
+  if (!wrapper) return;
+  const context = getSelectedFeatureContext();
+
+  if (!context) {
+    wrapper.innerHTML = '<div class="resource-empty">Select an Epic and Feature/Task first.</div>';
+    return;
+  }
+
+  wrapper.innerHTML = RESOURCE_TYPES.map((item) => {
+    const resource = state.resources[item.type];
+    const isEditing = state.editingResourceType === item.type || !resource?.url;
+    const url = resource?.url || '';
+    const domain = url ? getDomainLabel(url) : '';
+
+    if (!isEditing && url) {
+      return `
+        <article class="resource-card has-link">
+          <div class="resource-card-head">
+            <strong>${escapeHtml(item.label)}</strong>
+            <span>${escapeHtml(domain)}</span>
+          </div>
+          <a href="${escapeHtml(url)}" target="_blank" rel="noreferrer" class="resource-preview-link">Open ${escapeHtml(item.label)}</a>
+          <div class="resource-url">${escapeHtml(url)}</div>
+          <div class="resource-actions">
+            <button type="button" data-edit-resource="${escapeHtml(item.type)}">Edit</button>
+            <button type="button" class="danger ghost" data-delete-resource="${escapeHtml(item.type)}">Delete</button>
+          </div>
+        </article>`;
+    }
+
+    return `
+      <article class="resource-card">
+        <div class="resource-card-head">
+          <strong>${escapeHtml(item.label)}</strong>
+          <span>${resource?.url ? 'Editing' : 'Not added yet'}</span>
+        </div>
+        <input id="resource_${escapeHtml(item.type)}" type="url" value="${escapeHtml(url)}" placeholder="${escapeHtml(item.placeholder)}" />
+        <div class="resource-actions">
+          <button type="button" class="primary" data-save-resource="${escapeHtml(item.type)}">${url ? 'Update Link' : 'Save Link'}</button>
+          ${url ? `<button type="button" class="ghost" data-cancel-resource="${escapeHtml(item.type)}">Cancel</button>` : ''}
+        </div>
+      </article>`;
+  }).join('');
+
+  wrapper.querySelectorAll('[data-edit-resource]').forEach((button) => {
+    button.addEventListener('click', () => {
+      state.editingResourceType = button.dataset.editResource;
+      renderResourceCards();
+    });
+  });
+
+  wrapper.querySelectorAll('[data-cancel-resource]').forEach((button) => {
+    button.addEventListener('click', () => {
+      state.editingResourceType = null;
+      renderResourceCards();
+    });
+  });
+
+  wrapper.querySelectorAll('[data-save-resource]').forEach((button) => {
+    button.addEventListener('click', () => saveResource(button.dataset.saveResource));
+  });
+
+  wrapper.querySelectorAll('[data-delete-resource]').forEach((button) => {
+    button.addEventListener('click', () => deleteResource(button.dataset.deleteResource));
+  });
+}
+
+async function saveResource(type) {
+  const context = getSelectedFeatureContext();
+  if (!context) return toast('Select an Epic and Feature/Task first.');
+  const item = RESOURCE_TYPES.find((resourceType) => resourceType.type === type);
+  if (!item) return toast('Unknown documentation link type.');
+
+  const input = $(`#resource_${CSS.escape(type)}`);
+  const url = normalizeExternalUrl(input?.value || '');
+  if (!url) return toast('Please enter a valid http/https link.');
+
+  try {
+    const saved = await api('/api/resources', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        epicId: context.epicId,
+        epicName: context.epicName,
+        featureId: context.featureId,
+        featureName: context.featureName,
+        type,
+        label: item.label,
+        url
+      })
+    });
+    state.resources[type] = saved;
+    state.editingResourceType = null;
+    renderResourceCards();
+    toast(`${item.label} saved.`);
+  } catch (error) {
+    toast(error.message);
+  }
+}
+
+async function deleteResource(type) {
+  const context = getSelectedFeatureContext();
+  if (!context) return toast('Select an Epic and Feature/Task first.');
+  const item = RESOURCE_TYPES.find((resourceType) => resourceType.type === type);
+  if (!confirm(`Delete ${item?.label || 'this link'}?`)) return;
+
+  try {
+    const query = new URLSearchParams({ epicId: context.epicId, featureId: context.featureId, type }).toString();
+    await api(`/api/resources?${query}`, { method: 'DELETE' });
+    delete state.resources[type];
+    state.editingResourceType = null;
+    renderResourceCards();
+    toast(`${item?.label || 'Link'} deleted.`);
+  } catch (error) {
+    toast(error.message);
+  }
+}
+
 function renderCommentsList(targetSelector, comments) {
   const target = $(targetSelector);
   if (!target) return;
@@ -1498,6 +1704,7 @@ function bindEvents() {
     }, 0);
   });
   $('#refreshIssuesBtn').addEventListener('click', () => loadIssues().then(() => toast('Report refreshed.')));
+  $('#refreshResourcesBtn')?.addEventListener('click', () => loadResourcesForScope().then(() => toast('Documentation links refreshed.')));
   $('#refreshEpicCommentsBtn')?.addEventListener('click', () => renderEpicComments().then(() => toast('Epic comments refreshed.')));
   $('#epicCommentForm')?.addEventListener('submit', (event) => submitEpicComment(event));
   $('#issueCommentForm')?.addEventListener('submit', (event) => submitIssueComment(event));
@@ -1514,11 +1721,13 @@ function bindEvents() {
     populateFeatureFilter();
     updateReportActions();
     renderIssuesTable();
+    loadResourcesForScope();
   });
   $('#reportFeatureFilter').addEventListener('change', () => {
     applyReportScopeTemplate();
     updateReportActions();
     renderIssuesTable();
+    loadResourcesForScope();
   });
   $('#searchBox').addEventListener('input', renderIssuesTable);
   $('#statusFilter').addEventListener('change', renderIssuesTable);
@@ -1557,6 +1766,7 @@ async function init() {
 
   await loadTemplates();
   await loadIssues();
+  await loadResourcesForScope();
 }
 
 init().catch((error) => toast(error.message));

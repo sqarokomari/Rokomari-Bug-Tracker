@@ -15,6 +15,7 @@ const SHEET_ID = '1JlJtBq3GlsEG1Rc9cwTLxcXDAwpvoX2C2Ld8fqEr6u0';
 const SHEET_TAB_NAME = 'Issues';
 const TEMPLATE_TAB_NAME = 'Templates';
 const COMMENT_TAB_NAME = 'Comments';
+const RESOURCE_TAB_NAME = 'Resources';
 const DRIVE_ROOT_FOLDER_ID = '1VA4Awn12PKmMc1VIEdimK-qwYBieU0yC';
 
 const MAKE_UPLOADED_FILES_ANYONE_WITH_LINK = false;
@@ -71,6 +72,19 @@ const COMMENT_HEADERS = [
   'Attachments JSON'
 ];
 
+const RESOURCE_HEADERS = [
+  'ID',
+  'Epic Name',
+  'Epic ID',
+  'Feature Name',
+  'Feature ID',
+  'Type',
+  'Label',
+  'URL',
+  'Created At',
+  'Updated At'
+];
+
 function doPost(e) {
   try {
     const payload = JSON.parse((e.postData && e.postData.contents) || '{}');
@@ -85,6 +99,9 @@ function doPost(e) {
       case 'deleteIssue': return jsonResponse(deleteIssue(payload.id));
       case 'getComments': return jsonResponse({ ok: true, comments: getComments(payload) });
       case 'addComment': return jsonResponse({ ok: true, comment: addComment(payload.payload) });
+      case 'getResources': return jsonResponse({ ok: true, resources: getResources(payload) });
+      case 'saveResource': return jsonResponse({ ok: true, resource: saveResource(payload.resource) });
+      case 'deleteResource': return jsonResponse(deleteResource(payload));
       case 'importIssues': return jsonResponse(importIssues(payload.issues || []));
       case 'uploadFile': return jsonResponse(uploadFile(payload));
       case 'uploadRemoteFile': return jsonResponse(uploadRemoteFile(payload));
@@ -157,6 +174,10 @@ function getTemplateSheet() {
 
 function getCommentSheet() {
   return getOrCreateSheet(COMMENT_TAB_NAME, COMMENT_HEADERS);
+}
+
+function getResourceSheet() {
+  return getOrCreateSheet(RESOURCE_TAB_NAME, RESOURCE_HEADERS);
 }
 
 function getHeaders(sheet) {
@@ -691,6 +712,128 @@ function addComment(payload) {
 
   sheet.appendRow(row);
   return comment;
+}
+
+function resourceFromRow(headers, row) {
+  const obj = rowToObject(headers, row);
+  return {
+    id: String(obj['ID'] || ''),
+    epicName: String(obj['Epic Name'] || ''),
+    epicId: String(obj['Epic ID'] || ''),
+    featureName: String(obj['Feature Name'] || ''),
+    featureId: String(obj['Feature ID'] || ''),
+    type: String(obj['Type'] || ''),
+    label: String(obj['Label'] || ''),
+    url: String(obj['URL'] || ''),
+    createdAt: String(obj['Created At'] || ''),
+    updatedAt: String(obj['Updated At'] || '')
+  };
+}
+
+function getResources(payload) {
+  const sheet = getResourceSheet();
+  const headers = getHeaders(sheet);
+  const lastRow = sheet.getLastRow();
+  if (lastRow < 2) return [];
+
+  const epicId = String(payload.epicId || '').trim();
+  const featureId = String(payload.featureId || '').trim();
+
+  return sheet.getRange(2, 1, lastRow - 1, headers.length).getValues()
+    .map((row) => resourceFromRow(headers, row))
+    .filter((resource) => {
+      if (epicId && resource.epicId !== epicId) return false;
+      if (featureId && resource.featureId !== featureId) return false;
+      return Boolean(resource.type && resource.url);
+    });
+}
+
+function findResourceRow(sheet, epicId, featureId, type) {
+  const headers = getHeaders(sheet);
+  const epicIndex = headers.indexOf('Epic ID');
+  const featureIndex = headers.indexOf('Feature ID');
+  const typeIndex = headers.indexOf('Type');
+  const lastRow = sheet.getLastRow();
+  if (epicIndex < 0 || featureIndex < 0 || typeIndex < 0 || lastRow < 2) return 0;
+
+  const rows = sheet.getRange(2, 1, lastRow - 1, headers.length).getValues();
+  for (let i = 0; i < rows.length; i += 1) {
+    if (
+      String(rows[i][epicIndex]) === String(epicId) &&
+      String(rows[i][featureIndex]) === String(featureId) &&
+      String(rows[i][typeIndex]) === String(type)
+    ) {
+      return i + 2;
+    }
+  }
+  return 0;
+}
+
+function isSafeResourceUrl(value) {
+  const text = String(value || '').trim();
+  return /^https?:\/\//i.test(text);
+}
+
+function saveResource(resource) {
+  if (!resource) throw new Error('Resource payload is required.');
+  if (!resource.epicId || !resource.featureId) throw new Error('Epic ID and Feature ID are required.');
+  if (!resource.type) throw new Error('Resource type is required.');
+  if (!resource.url || !isSafeResourceUrl(resource.url)) throw new Error('A valid http/https URL is required.');
+
+  const now = new Date().toISOString();
+  const item = {
+    id: String(resource.id || Utilities.getUuid()),
+    epicName: String(resource.epicName || '').trim(),
+    epicId: String(resource.epicId || '').trim(),
+    featureName: String(resource.featureName || '').trim(),
+    featureId: String(resource.featureId || '').trim(),
+    type: String(resource.type || '').trim(),
+    label: String(resource.label || resource.type || '').trim(),
+    url: String(resource.url || '').trim(),
+    createdAt: resource.createdAt || now,
+    updatedAt: now
+  };
+
+  const sheet = getResourceSheet();
+  const headers = getHeaders(sheet);
+  const existingRow = findResourceRow(sheet, item.epicId, item.featureId, item.type);
+  if (existingRow) {
+    const existing = resourceFromRow(headers, sheet.getRange(existingRow, 1, 1, headers.length).getValues()[0]);
+    item.id = existing.id || item.id;
+    item.createdAt = existing.createdAt || item.createdAt;
+  }
+
+  const row = headers.map((header) => {
+    switch (header) {
+      case 'ID': return item.id;
+      case 'Epic Name': return item.epicName;
+      case 'Epic ID': return item.epicId;
+      case 'Feature Name': return item.featureName;
+      case 'Feature ID': return item.featureId;
+      case 'Type': return item.type;
+      case 'Label': return item.label;
+      case 'URL': return item.url;
+      case 'Created At': return item.createdAt;
+      case 'Updated At': return item.updatedAt;
+      default: return '';
+    }
+  });
+
+  if (existingRow) sheet.getRange(existingRow, 1, 1, headers.length).setValues([row]);
+  else sheet.appendRow(row);
+  return item;
+}
+
+function deleteResource(payload) {
+  const epicId = String(payload.epicId || '').trim();
+  const featureId = String(payload.featureId || '').trim();
+  const type = String(payload.type || '').trim();
+  if (!epicId || !featureId || !type) throw new Error('Epic ID, Feature ID, and resource type are required.');
+
+  const sheet = getResourceSheet();
+  const row = findResourceRow(sheet, epicId, featureId, type);
+  if (row) sheet.deleteRow(row);
+  return { ok: true, deleted: row ? 1 : 0 };
 }
 
 function importIssues(issues) {

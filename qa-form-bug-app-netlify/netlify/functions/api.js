@@ -301,6 +301,33 @@ exports.handler = async (event) => {
       return json(201, result.comment);
     }
 
+    if (method === 'GET' && path === '/api/resources') {
+      const params = event.queryStringParameters || {};
+      const result = await postToAppsScript({
+        action: 'getResources',
+        epicId: String(params.epicId || ''),
+        featureId: String(params.featureId || '')
+      });
+      return json(200, result.resources || []);
+    }
+
+    if (method === 'POST' && path === '/api/resources') {
+      const resource = parseBody(event);
+      const result = await postToAppsScript({ action: 'saveResource', resource });
+      return json(201, result.resource);
+    }
+
+    if (method === 'DELETE' && path === '/api/resources') {
+      const params = event.queryStringParameters || {};
+      const result = await postToAppsScript({
+        action: 'deleteResource',
+        epicId: String(params.epicId || ''),
+        featureId: String(params.featureId || ''),
+        type: String(params.type || '')
+      });
+      return json(200, result);
+    }
+
     if (method === 'GET' && path === '/api/export/issues.xlsx') {
       return exportIssues(event);
     }
