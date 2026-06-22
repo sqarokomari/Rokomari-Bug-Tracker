@@ -14,6 +14,7 @@
 const SHEET_ID = '1JlJtBq3GlsEG1Rc9cwTLxcXDAwpvoX2C2Ld8fqEr6u0';
 const SHEET_TAB_NAME = 'Issues';
 const TEMPLATE_TAB_NAME = 'Templates';
+const COMMENT_TAB_NAME = 'Comments';
 const DRIVE_ROOT_FOLDER_ID = '1VA4Awn12PKmMc1VIEdimK-qwYBieU0yC';
 
 const MAKE_UPLOADED_FILES_ANYONE_WITH_LINK = false;
@@ -54,6 +55,22 @@ const TEMPLATE_HEADERS = [
   'Updated At'
 ];
 
+const COMMENT_HEADERS = [
+  'ID',
+  'Scope',
+  'Issue ID',
+  'Issue No',
+  'Epic Name',
+  'Epic ID',
+  'Feature Name',
+  'Feature ID',
+  'Author',
+  'Message',
+  'Attachment Links',
+  'Created At',
+  'Attachments JSON'
+];
+
 function doPost(e) {
   try {
     const payload = JSON.parse((e.postData && e.postData.contents) || '{}');
@@ -66,6 +83,8 @@ function doPost(e) {
       case 'createIssue': return jsonResponse({ ok: true, issue: createIssue(payload.payload) });
       case 'updateIssue': return jsonResponse({ ok: true, issue: updateIssue(payload.id, payload.patch || {}) });
       case 'deleteIssue': return jsonResponse(deleteIssue(payload.id));
+      case 'getComments': return jsonResponse({ ok: true, comments: getComments(payload) });
+      case 'addComment': return jsonResponse({ ok: true, comment: addComment(payload.payload) });
       case 'importIssues': return jsonResponse(importIssues(payload.issues || []));
       case 'uploadFile': return jsonResponse(uploadFile(payload));
       case 'uploadRemoteFile': return jsonResponse(uploadRemoteFile(payload));
@@ -134,6 +153,10 @@ function getIssueSheet() {
 
 function getTemplateSheet() {
   return getOrCreateSheet(TEMPLATE_TAB_NAME, TEMPLATE_HEADERS);
+}
+
+function getCommentSheet() {
+  return getOrCreateSheet(COMMENT_TAB_NAME, COMMENT_HEADERS);
 }
 
 function getHeaders(sheet) {
@@ -544,6 +567,130 @@ function deleteIssue(id) {
   const row = findIssueRow(sheet, issue);
   if (row) sheet.deleteRow(row);
   return { ok: true, deleted: row ? 1 : 0 };
+}
+
+
+function commentFromRow(headers, row) {
+  const obj = rowToObject(headers, row);
+  return {
+    id: String(obj['ID'] || ''),
+    scope: String(obj['Scope'] || ''),
+    issueId: String(obj['Issue ID'] || ''),
+    issueNo: String(obj['Issue No'] || ''),
+    epicName: String(obj['Epic Name'] || ''),
+    epicId: String(obj['Epic ID'] || ''),
+    featureName: String(obj['Feature Name'] || ''),
+    featureId: String(obj['Feature ID'] || ''),
+    author: String(obj['Author'] || ''),
+    message: String(obj['Message'] || ''),
+    createdAt: String(obj['Created At'] || ''),
+    attachments: parseJson(obj['Attachments JSON'], [])
+  };
+}
+
+function getComments(payload) {
+  const sheet = getCommentSheet();
+  const headers = getHeaders(sheet);
+  const lastRow = sheet.getLastRow();
+  if (lastRow < 2) return [];
+
+  const scope = String(payload.scope || '').trim().toLowerCase();
+  const issueId = String(payload.issueId || '').trim();
+  const epicId = String(payload.epicId || '').trim();
+
+  return sheet.getRange(2, 1, lastRow - 1, headers.length).getValues()
+    .map((row) => commentFromRow(headers, row))
+    .filter((comment) => {
+      if (scope && comment.scope !== scope) return false;
+      if (scope === 'issue') return comment.issueId === issueId;
+      if (scope === 'epic') return comment.epicId === epicId;
+      return true;
+    })
+    .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
+}
+
+function uploadCommentAttachment(filePayload, context) {
+  const folderIssueNo = context.scope === 'issue'
+    ? `${context.issueNo || 'issue'}-comments`
+    : `${context.epicId || 'epic'}-epic-comments`;
+
+  const saved = uploadFile({
+    epicId: context.epicId || 'epic',
+    featureId: context.featureId || 'comments',
+    issueNo: folderIssueNo,
+    fileName: filePayload.fileName,
+    mimeType: filePayload.mimeType,
+    base64: filePayload.base64
+  });
+
+  return {
+    id: Utilities.getUuid(),
+    fieldName: filePayload.fieldName || 'Comment Attachment',
+    storage: 'drive-apps-script-comment',
+    originalName: filePayload.fileName || saved.name,
+    savedName: saved.name,
+    mimeType: filePayload.mimeType || '',
+    size: filePayload.size || 0,
+    driveFileId: saved.fileId,
+    url: saved.url,
+    folderPath: saved.folderPath
+  };
+}
+
+function addComment(payload) {
+  if (!payload) throw new Error('Comment payload is required.');
+  const now = new Date().toISOString();
+  const scope = String(payload.scope || '').trim().toLowerCase();
+  if (scope !== 'issue' && scope !== 'epic') throw new Error('Comment scope must be issue or epic.');
+
+  const comment = {
+    id: Utilities.getUuid(),
+    scope,
+    issueId: String(payload.issueId || '').trim(),
+    issueNo: String(payload.issueNo || '').trim(),
+    epicName: String(payload.epicName || '').trim(),
+    epicId: String(payload.epicId || '').trim(),
+    featureName: String(payload.featureName || '').trim(),
+    featureId: String(payload.featureId || '').trim(),
+    author: String(payload.author || '').trim(),
+    message: String(payload.message || '').trim(),
+    createdAt: now,
+    attachments: []
+  };
+
+  if (!comment.author) throw new Error('Comment author is required.');
+  if (!comment.message) throw new Error('Comment message is required.');
+  if (scope === 'issue' && !comment.issueId) throw new Error('issueId is required for issue comments.');
+  if (scope === 'epic' && !comment.epicId) throw new Error('epicId is required for epic comments.');
+
+  (payload.files || []).forEach((filePayload) => {
+    comment.attachments.push(uploadCommentAttachment(filePayload, comment));
+  });
+
+  const sheet = getCommentSheet();
+  const headers = getHeaders(sheet);
+  const attachmentLinks = comment.attachments.map((item) => item.url || '').filter(Boolean).join('\n');
+  const row = headers.map((header) => {
+    switch (header) {
+      case 'ID': return comment.id;
+      case 'Scope': return comment.scope;
+      case 'Issue ID': return comment.issueId;
+      case 'Issue No': return comment.issueNo;
+      case 'Epic Name': return comment.epicName;
+      case 'Epic ID': return comment.epicId;
+      case 'Feature Name': return comment.featureName;
+      case 'Feature ID': return comment.featureId;
+      case 'Author': return comment.author;
+      case 'Message': return comment.message;
+      case 'Attachment Links': return attachmentLinks;
+      case 'Created At': return comment.createdAt;
+      case 'Attachments JSON': return JSON.stringify(comment.attachments);
+      default: return '';
+    }
+  });
+
+  sheet.appendRow(row);
+  return comment;
 }
 
 function importIssues(issues) {

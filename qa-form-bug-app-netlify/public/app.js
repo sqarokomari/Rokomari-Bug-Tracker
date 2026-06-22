@@ -8,7 +8,8 @@ const state = {
   selectedIssue: null,
   spreadsheetUrl: '',
   editingFieldIndex: null,
-  remoteAttachmentUrls: {}
+  remoteAttachmentUrls: {},
+  selectedCommentIssue: null
 };
 
 const $ = (selector) => document.querySelector(selector);
@@ -1128,7 +1129,7 @@ function renderIssuesTable() {
       <th>Priority</th>
       <th>Attachments</th>
       <th>Created</th>
-      <th>Action</th>
+      <th>Actions</th>
     </tr>`;
 
   const issues = getFilteredIssues();
@@ -1136,11 +1137,13 @@ function renderIssuesTable() {
 
   if (!isReportScopeSelected()) {
     body.innerHTML = '<tr><td colspan="13">Select an Epic and Feature/Task to view issues.</td></tr>';
+    renderEpicComments();
     return;
   }
 
   if (issues.length === 0) {
     body.innerHTML = '<tr><td colspan="13">No issues found for this Epic and Feature/Task.</td></tr>';
+    renderEpicComments();
     return;
   }
 
@@ -1158,12 +1161,215 @@ function renderIssuesTable() {
       <td>${renderBadge(issue.priority || '-', getPriorityTone(issue.priority))}</td>
       <td>${(issue.attachments || []).length}</td>
       <td>${escapeHtml(new Date(issue.createdAt).toLocaleString())}</td>
-      <td><button data-open-issue="${issue.id}">View</button></td>
+      <td class="table-actions">
+        <button data-open-issue="${issue.id}">View</button>
+        <button data-comment-issue="${issue.id}" class="ghost">Comments</button>
+      </td>
     </tr>`).join('');
 
   $$('[data-open-issue]').forEach((button) => {
     button.addEventListener('click', () => openIssue(button.dataset.openIssue));
   });
+
+  $$('[data-comment-issue]').forEach((button) => {
+    button.addEventListener('click', () => openIssueComments(button.dataset.commentIssue));
+  });
+
+  renderEpicComments();
+}
+
+function getSelectedEpicContext() {
+  const epicId = $('#reportEpicFilter')?.value || '';
+  if (!epicId) return null;
+  const source = getReportSourceItems().find((item) => item.epicId === epicId) || {};
+  return {
+    epicId,
+    epicName: source.epicName || epicId
+  };
+}
+
+function renderCommentsList(targetSelector, comments) {
+  const target = $(targetSelector);
+  if (!target) return;
+
+  if (!comments || comments.length === 0) {
+    target.classList.add('empty');
+    target.innerHTML = 'No comments yet.';
+    return;
+  }
+
+  target.classList.remove('empty');
+  target.innerHTML = comments.map((comment) => {
+    const attachments = comment.attachments || [];
+    const attachmentHtml = attachments.length
+      ? `<ul class="comment-attachments">${attachments.map((file) => `<li><a href="${escapeHtml(file.url)}" target="_blank" rel="noreferrer">${escapeHtml(file.originalName || file.savedName || file.url)}</a></li>`).join('')}</ul>`
+      : '';
+    return `
+      <article class="comment-item">
+        <div class="comment-meta">
+          <strong>${escapeHtml(comment.author || 'Anonymous')}</strong>
+          <span>${escapeHtml(formatDateTimeValue(comment.createdAt) || '')}</span>
+        </div>
+        <div class="comment-text">${escapeHtml(comment.message || '').replace(/\n/g, '<br>')}</div>
+        ${attachmentHtml}
+      </article>`;
+  }).join('');
+}
+
+async function getCommentFiles(inputSelector, fieldName) {
+  const input = $(inputSelector);
+  const files = Array.from(input?.files || []);
+  const payloads = [];
+  for (const file of files) {
+    payloads.push(await fileToBase64Payload(file, fieldName));
+  }
+  return payloads;
+}
+
+async function loadComments(params) {
+  const query = new URLSearchParams(params).toString();
+  return api(`/api/comments?${query}`);
+}
+
+async function addComment(payload) {
+  return api('/api/comments', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload)
+  });
+}
+
+async function renderEpicComments() {
+  const context = getSelectedEpicContext();
+  const scopeText = $('#epicCommentsScope');
+  const saveBtn = $('#saveEpicCommentBtn');
+
+  if (!context) {
+    if (scopeText) scopeText.textContent = 'Select an Epic to view or add Epic-level comments.';
+    if (saveBtn) saveBtn.disabled = true;
+    const list = $('#epicCommentsList');
+    if (list) {
+      list.classList.add('empty');
+      list.innerHTML = 'No Epic selected.';
+    }
+    return;
+  }
+
+  if (scopeText) scopeText.textContent = `Epic: ${context.epicName} (${context.epicId})`;
+  if (saveBtn) saveBtn.disabled = false;
+
+  try {
+    const comments = await loadComments({ scope: 'epic', epicId: context.epicId });
+    renderCommentsList('#epicCommentsList', comments);
+  } catch (error) {
+    const list = $('#epicCommentsList');
+    if (list) {
+      list.classList.add('empty');
+      list.innerHTML = `Could not load Epic comments: ${escapeHtml(error.message)}`;
+    }
+  }
+}
+
+async function submitEpicComment(event) {
+  event.preventDefault();
+  const context = getSelectedEpicContext();
+  if (!context) return toast('Select an Epic first.');
+
+  const author = $('#epicCommentAuthor').value.trim();
+  const message = $('#epicCommentText').value.trim();
+  if (!author) return toast('Your name is required.');
+  if (!message) return toast('Comment is required.');
+
+  const button = $('#saveEpicCommentBtn');
+  button.disabled = true;
+  button.textContent = 'Saving...';
+
+  try {
+    const files = await getCommentFiles('#epicCommentFiles', 'Epic Comment Attachment');
+    await addComment({
+      scope: 'epic',
+      epicId: context.epicId,
+      epicName: context.epicName,
+      author,
+      message,
+      files
+    });
+    event.target.reset();
+    await renderEpicComments();
+    toast('Epic comment added.');
+  } catch (error) {
+    toast(error.message);
+  } finally {
+    button.disabled = false;
+    button.textContent = 'Add Epic Comment';
+  }
+}
+
+async function openIssueComments(issueId) {
+  const issue = state.issues.find((item) => item.id === issueId);
+  if (!issue) return toast('Issue not found.');
+  state.selectedCommentIssue = issue;
+
+  $('#commentModalTitle').textContent = `${issue.issueNo} Comments`;
+  $('#commentModalScope').textContent = issue.title || '';
+  $('#issueCommentForm')?.reset();
+  $('#commentModal')?.classList.remove('hidden');
+
+  try {
+    const comments = await loadComments({ scope: 'issue', issueId: issue.id });
+    renderCommentsList('#issueCommentsList', comments);
+  } catch (error) {
+    const list = $('#issueCommentsList');
+    if (list) {
+      list.classList.add('empty');
+      list.innerHTML = `Could not load issue comments: ${escapeHtml(error.message)}`;
+    }
+  }
+}
+
+function closeCommentModal() {
+  $('#commentModal')?.classList.add('hidden');
+  state.selectedCommentIssue = null;
+}
+
+async function submitIssueComment(event) {
+  event.preventDefault();
+  const issue = state.selectedCommentIssue;
+  if (!issue) return toast('No issue selected.');
+
+  const author = $('#issueCommentAuthor').value.trim();
+  const message = $('#issueCommentText').value.trim();
+  if (!author) return toast('Your name is required.');
+  if (!message) return toast('Comment is required.');
+
+  const submitButton = event.target.querySelector('button[type="submit"]');
+  submitButton.disabled = true;
+  submitButton.textContent = 'Saving...';
+
+  try {
+    const files = await getCommentFiles('#issueCommentFiles', 'Issue Comment Attachment');
+    await addComment({
+      scope: 'issue',
+      issueId: issue.id,
+      issueNo: issue.issueNo,
+      epicId: issue.epicId,
+      epicName: issue.epicName,
+      featureId: issue.featureId,
+      featureName: issue.featureName,
+      author,
+      message,
+      files
+    });
+    event.target.reset();
+    const comments = await loadComments({ scope: 'issue', issueId: issue.id });
+    renderCommentsList('#issueCommentsList', comments);
+    toast('Issue comment added.');
+  } catch (error) {
+    toast(error.message);
+  } finally {
+    submitButton.disabled = false;
+    submitButton.textContent = 'Add Comment';
+  }
 }
 
 function openIssue(id) {
@@ -1292,6 +1498,13 @@ function bindEvents() {
     }, 0);
   });
   $('#refreshIssuesBtn').addEventListener('click', () => loadIssues().then(() => toast('Report refreshed.')));
+  $('#refreshEpicCommentsBtn')?.addEventListener('click', () => renderEpicComments().then(() => toast('Epic comments refreshed.')));
+  $('#epicCommentForm')?.addEventListener('submit', (event) => submitEpicComment(event));
+  $('#issueCommentForm')?.addEventListener('submit', (event) => submitIssueComment(event));
+  $('#closeCommentModalBtn')?.addEventListener('click', closeCommentModal);
+  $('#commentModal')?.addEventListener('click', (event) => {
+    if (event.target.id === 'commentModal') closeCommentModal();
+  });
   $('#createIssueBtn')?.addEventListener('click', openCreateIssueModal);
   $('#closeCreateIssueModalBtn')?.addEventListener('click', closeCreateIssueModal);
   $('#createIssueModal')?.addEventListener('click', (event) => {

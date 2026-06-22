@@ -283,6 +283,24 @@ exports.handler = async (event) => {
       return json(200, result);
     }
 
+
+    if (method === 'GET' && path === '/api/comments') {
+      const params = event.queryStringParameters || {};
+      const result = await postToAppsScript({
+        action: 'getComments',
+        scope: String(params.scope || ''),
+        issueId: String(params.issueId || ''),
+        epicId: String(params.epicId || '')
+      });
+      return json(200, result.comments || []);
+    }
+
+    if (method === 'POST' && path === '/api/comments') {
+      const payload = parseBody(event);
+      const result = await postToAppsScript({ action: 'addComment', payload });
+      return json(201, result.comment);
+    }
+
     if (method === 'GET' && path === '/api/export/issues.xlsx') {
       return exportIssues(event);
     }

@@ -66,15 +66,21 @@
 
           <div class="embedded-preview">
             <h3>Preset Preview</h3>
-            <p>This preview shows the preset draft. Submit Issue updates after Save Preset.</p>
+            <p>This preview shows the preset draft. Create Issue updates after Save Preset.</p>
             <div id="presetPreview" class="preset-preview">
               <p class="field-meta">Start typing preset details or add fields to see the draft preview here.</p>
             </div>
           </div>
+
+          <div class="embedded-preview preset-field-editor">
+            <h3>Preset Fields</h3>
+            <p>Add, edit, move, or delete fields for the currently loaded preset. Click Save Preset to persist changes.</p>
+            <div id="fieldList" class="field-list empty">No custom fields yet.</div>
+          </div>
         </section>
 
         <section class="card">
-          <h2>2. Add Custom Fields</h2>
+          <h2>2. Add / Edit Custom Field</h2>
           <div class="split">
             <div class="form-row">
               <label>Field name</label>
@@ -101,7 +107,6 @@
             <button id="cancelEditFieldBtn" class="ghost hidden">Cancel Edit</button>
             <button id="clearFieldsBtn" class="ghost">Clear Fields</button>
           </div>
-          <div id="fieldList" class="field-list empty">No custom fields yet.</div>
         </section>
       </div>
     </section>
@@ -163,6 +168,36 @@
           </table>
         </div>
         <div id="issueCountSummary" class="summary-row">Total issues: 0</div>
+
+        <section id="epicCommentsSection" class="comments-section">
+          <div class="comments-head">
+            <div>
+              <h3>Epic Comments</h3>
+              <p id="epicCommentsScope">Select an Epic to view or add Epic-level comments.</p>
+            </div>
+            <button id="refreshEpicCommentsBtn" type="button">Refresh Comments</button>
+          </div>
+          <div id="epicCommentsList" class="comments-list empty">No Epic selected.</div>
+          <form id="epicCommentForm" class="comment-form">
+            <div class="split three">
+              <div class="form-row">
+                <label>Your name</label>
+                <input id="epicCommentAuthor" type="text" placeholder="Example: Saifuddin" required />
+              </div>
+              <div class="form-row wide-input">
+                <label>Comment</label>
+                <textarea id="epicCommentText" placeholder="Write Epic-level note, blocker, decision, or retest update..." required></textarea>
+              </div>
+              <div class="form-row">
+                <label>Attachment</label>
+                <input id="epicCommentFiles" type="file" multiple accept="image/*,video/*,.pdf,.doc,.docx,.xls,.xlsx,.txt" />
+              </div>
+            </div>
+            <div class="actions">
+              <button id="saveEpicCommentBtn" class="primary" type="submit" disabled>Add Epic Comment</button>
+            </div>
+          </form>
+        </section>
       </section>
     </section>
 
@@ -257,6 +292,34 @@
           </div>
         </form>
       </div>
+  </div>
+
+  <div class="modal-backdrop hidden" id="commentModal">
+    <div class="modal large-modal comment-modal">
+      <button class="modal-close" id="closeCommentModalBtn" type="button">×</button>
+      <h2 id="commentModalTitle">Issue Comments</h2>
+      <p id="commentModalScope" class="field-meta"></p>
+      <div id="issueCommentsList" class="comments-list empty">No comments yet.</div>
+      <form id="issueCommentForm" class="comment-form">
+        <div class="split three">
+          <div class="form-row">
+            <label>Your name</label>
+            <input id="issueCommentAuthor" type="text" placeholder="Example: Developer / QA name" required />
+          </div>
+          <div class="form-row wide-input">
+            <label>Comment</label>
+            <textarea id="issueCommentText" placeholder="Write your comment, fix note, clarification, or retest update..." required></textarea>
+          </div>
+          <div class="form-row">
+            <label>Attachment</label>
+            <input id="issueCommentFiles" type="file" multiple accept="image/*,video/*,.pdf,.doc,.docx,.xls,.xlsx,.txt" />
+          </div>
+        </div>
+        <div class="actions">
+          <button class="primary" type="submit">Add Comment</button>
+        </div>
+      </form>
+    </div>
   </div>
 
   <div class="modal-backdrop hidden" id="issueModal">
